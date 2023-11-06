@@ -18,90 +18,72 @@ const mongoUri = 'mongodb+srv://' + process.env.USERNAME + ':' + process.env.PAS
 
 app.listen(port);
 console.log('Server started at http://localhost:' + port);
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.set('view engine', 'ejs');
 
-app.get('/login', function(req, res) {
-    const fileString = readFileSync('./views/html/login.html');
-    if(fileString === null) {
-        res.status(500).send('Internal Server Error.');
+
+app.get('/app/:path', async function (req, res) {
+    let now = Date.now();
+    let cookieUser = req.cookies;
+    if(cookieUser == null) {
+        res.status(200).render('subscribe', { instructions: '' });
+    }
+
+    const expirationDate = cookieUser.expires;
+    if(expirationDate === undefined) {
+        res.status(200).render('subscribe', { instructions: '' });
+    } else if(now > expirationDate) {
+        res.status(419).render('login', { instructions: 'Cookie expired. Please login.' });
+    }
+
+    let path = req.params.path.toString();
+    const username = cookieUser.username;
+    let user = await getUser(username);
+    if(user !== null) {
+        if(path.equals('subscribe')) {
+            res.status(200).render('subscribe', { instructions: '' });
+        } else if(path.equals('login')) {
+            res.status(200).render('login', { instructions: '' });
+        } else {
+            res.cookie("userData", user, { expires: new Date(Date.now() + 1000000), httpOnly: true });
+            res.status(200).render('topics', user);
+        }
     } else {
-        res.status(200).send(fileString);
+        res.status(200).render('subscribe', { instructions: '' });
+    }
+});
+
+app.get('/style.css', function(req, res) {
+    res.send(readFileAsync(__dirname + '/views/style.css'));
+});
+
+app.post('/subscribe', async function(req, res) {
+    let reqBody = req.body
+    const username = reqBody.username;
+    const subscriptions = reqBody.subscriptions
+    let user = await createUser(username, subscriptions);
+    if(user !== null) {
+        res.cookie("userData", user, { expires: new Date(Date.now() + 1000000), httpOnly: true });
+        res.render('topics', user);
+    } else {
+        res.status(500).send('Internal Server Error.');
     }
 });
 
 app.post('/login', async function (req, res) {
     const username = req.body.username;
-    const password = req.body.password;
-    let user = await getUser(username, password);
+    let user = await getUser(username);
     if (user === null) {
-        const fileString = readFileSync('./views/html/login.html');
-        let html = NodeHtmlParser.parse(fileString);
-        html.getElementById('instructions').set_content(
-            'The username does not exist or the password is incorrect.');
-        res.status(401).send(html.toString());
+        res.status(401).render('subscribe', { instructions: 'The username is not recognized, please subscribe!' });
     } else {
-        res.cookie("userData", user);
-        res.status(200).render('account', user);
+        res.cookie("userData", user, { expires: new Date(Date.now() + 1000000), httpOnly: true });
+        res.status(200).render('topics', user);
     }
 });
 
-app.get('/style.css', function(req, res) {
-    res.send(readFileAsync('./views/html/style.css'));
-});
-
-app.get('/signup', function(req, res) {
-    const fileString = readFileSync('./views/html/signup.html');
-    if(fileString === null) {
-        res.status(500).send('Internal Server Error.');
-    } else {
-        res.status(200).send(fileString);
-    }
-});
-
-app.post('/signup', async function(req, res) {
-    const username = req.body.username;
-    const password = req.body.password;
-    const password2 = req.body.password2;
-
-    if(password !== password2) {
-        const fileString = readFileSync('./views/html/signup.html');
-        let html = NodeHtmlParser.parse(fileString);
-        html.getElementById('username').set_content(username);
-        html.getElementById('instructions').set_content('The passwords do not match.');
-        res.status(401).send(html.toString());
-    }
-    let user = { username: username, password: password, subscriptions: [] }
-    let result = await createUser(user);
-    if(result === 'User created.') {
-        res.render('account', user);
-    } else {
-        const fileString = readFileSync('./views/html/signup.html');
-        let html = NodeHtmlParser.parse(fileString);
-        html.getElementById('instructions').set_content(result);
-        res.status(401).send(html.toString());
-    }
-});
-
-app.get('/account', async function (req, res) {
-    let cookieUser = req.cookies;
-    const username = cookieUser.username;
-    const password = cookieUser.password;
-    let user = await getUser(username, password);
-    if (user === null) {
-        const fileString = readFileSync('./views/html/login.html');
-        let html = NodeHtmlParser.parse(fileString);
-        html.getElementById('instructions').set_content('Please login.');
-        res.status(401).send(html.toString());
-    } else {
-        res.render('account', user);
-    }
-});
-
-async function getUser(username, password) {
+async function getUser(username) {
     // https://www.mongodb.com/blog/post/quick-start-nodejs-mongodb-how-to-get-connected-to-your-database
     const client = new MongoClient(mongoUri);
     let returnUser = null;
@@ -113,10 +95,7 @@ async function getUser(username, password) {
         const user = await parts.findOne(query);
         if(user !== null) {
             // the user exists
-            let correctPass = user.password;
-            if(password === correctPass) {
-                returnUser = user;
-            }
+            returnUser = user;
         }
     } catch(error) {
         console.error(error);
@@ -126,29 +105,39 @@ async function getUser(username, password) {
     return returnUser;
 }
 
-async function createUser(newUser) {
+async function createUser(username, subscriptions) {
     // https://www.mongodb.com/languages/mongodb-with-nodejs
     const client = new MongoClient(mongoUri);
+    let newUser = {username: username, subscriptions: subscriptions};
     try {
         const database = client.db('isat_twitter');
         const parts = database.collection('users');
-        username = newUser.username
-        const query = { 'username': username };
+        let query = { 'username': username };
         // see if this username exists
         const user = await parts.findOne(query);
         if(user === null) {
             // the user does not exist
             await parts.insertOne(newUser);
         } else {
-            return 'The user already exists. Please choose a different username.';
+            for(let i = 0; i <= 99999; i++) {
+                let newUsername = username + i.toString();
+                let query = { 'username': newUsername };
+                const find = await parts.findOne(query);
+                if(find === null) {
+                    // the username is unique
+                    newUser = {username: newUsername, subscriptions: subscriptions};
+                    await parts.insertOne(newUser);
+                    break;
+                }
+            }
         }
     } catch(error) {
         console.error(error);
-        return 'Internal Server Error';
+        return null;
     } finally {
         await client.close();
     }
-    return 'User created.';
+    return newUser;
 }
 
 function readFileSync(filepath) {

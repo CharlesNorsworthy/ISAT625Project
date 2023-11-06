@@ -1,0 +1,17 @@
+<html lang="en">
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <body>
+        <h1>Create an Account on ISAT Twitter</h1>
+        <form action="/subscribe" method="POST">
+            <!--https://stackoverflow.com/questions/4309950/how-to-align-input-forms-in-html-->
+            <p>
+                <label for="username">Desired User Name:</label>
+                <input id="username" name="username" type="text" value="">
+            </p>
+            <p>
+                <input type="submit">
+            </p>
+            <p id="instructions" style="color:red;"><%= instructions %></p>
+        </form>
+    </body>
+</html>
