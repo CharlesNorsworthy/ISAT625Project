@@ -4,6 +4,7 @@
 /// https://www.tutorialspoint.com/http-cookies-in-node-js
 /// https://www.npmjs.com/package/node-html-parser
 /// https://www.geeksforgeeks.org/use-ejs-as-template-engine-in-node-js/
+/// https://www.geeksforgeeks.org/express-js-res-redirect-function/
 
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -23,40 +24,45 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.set('view engine', 'ejs');
 
+app.get('/style.css', function(req, res) {
+    res.send(readFileAsync(__dirname + '/views/style.css'));
+});
 
-app.get('/app/:path', async function (req, res) {
+app.get('*', async function (req, res) {
     let now = Date.now();
-    let cookieUser = req.cookies;
-    if(cookieUser == null) {
+    let cookies = req.cookies;
+    if(cookies == null) {
         res.status(200).render('subscribe', { instructions: '' });
     }
-
-    const expirationDate = cookieUser.expires;
-    if(expirationDate === undefined) {
-        res.status(200).render('subscribe', { instructions: '' });
-    } else if(now > expirationDate) {
-        res.status(419).render('login', { instructions: 'Cookie expired. Please login.' });
-    }
-
-    let path = req.params.path.toString();
-    const username = cookieUser.username;
-    let user = await getUser(username);
-    if(user !== null) {
-        if(path.equals('subscribe')) {
+    let hasCookie = cookies.hasOwnProperty('userData');
+    if(hasCookie) {
+        let userCookie = cookies.userData;
+        const expirationDate = userCookie.expires;
+        if(expirationDate === undefined) {
             res.status(200).render('subscribe', { instructions: '' });
-        } else if(path.equals('login')) {
-            res.status(200).render('login', { instructions: '' });
+        } else if(now > expirationDate) {
+            res.status(419).render('login', { instructions: 'Cookie expired. Please login.' });
         } else {
-            res.cookie("userData", user, { expires: new Date(Date.now() + 1000000), httpOnly: true });
-            res.status(200).render('topics', user);
+            let path = req.url.toString();
+            const username = userCookie.username;
+            let user = await getUser(username);
+            if(user !== null) {
+                if(path === '/subscribe' || path === '/subscribe.html') {
+                    res.status(200).render('subscribe', { instructions: '' });
+                } else if(path === '/login' || path === '/login.html') {
+                    res.status(200).render('login', { instructions: '' });
+                } else {
+                    user.expires = new Date(Date.now() + 1000000)
+                    res.cookie("userData", user);
+                    res.status(200).render('topics', user);
+                }
+            } else {
+                res.status(200).render('subscribe', { instructions: '' });
+            }
         }
     } else {
         res.status(200).render('subscribe', { instructions: '' });
     }
-});
-
-app.get('/style.css', function(req, res) {
-    res.send(readFileAsync(__dirname + '/views/style.css'));
 });
 
 app.post('/subscribe', async function(req, res) {
@@ -65,7 +71,8 @@ app.post('/subscribe', async function(req, res) {
     const subscriptions = reqBody.subscriptions
     let user = await createUser(username, subscriptions);
     if(user !== null) {
-        res.cookie("userData", user, { expires: new Date(Date.now() + 1000000), httpOnly: true });
+        user.expires = new Date(Date.now() + 1000000)
+        res.cookie("userData", user);
         res.render('topics', user);
     } else {
         res.status(500).send('Internal Server Error.');
@@ -78,7 +85,8 @@ app.post('/login', async function (req, res) {
     if (user === null) {
         res.status(401).render('subscribe', { instructions: 'The username is not recognized, please subscribe!' });
     } else {
-        res.cookie("userData", user, { expires: new Date(Date.now() + 1000000), httpOnly: true });
+        user.expires = new Date(Date.now() + 1000000)
+        res.cookie("userData", user);
         res.status(200).render('topics', user);
     }
 });
