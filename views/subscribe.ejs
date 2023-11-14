@@ -8,6 +8,15 @@
                 <label for="username">Desired User Name:</label>
                 <input id="username" name="username" type="text" value="">
             </p>
+            <p>Select topics to subscribe to:</p>
+            <!-- https://www.geeksforgeeks.org/use-ejs-as-template-engine-in-node-js/ -->
+            <ul>
+                <% topics.forEach((item)=>{%>
+                <li>
+                    <%=item%>
+                </li>
+                <%});%>
+            </ul>
             <p>
                 <input type="submit">
             </p>

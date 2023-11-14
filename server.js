@@ -28,12 +28,35 @@ app.get('/style.css', function(req, res) {
     res.send(readFileAsync(__dirname + '/views/style.css'));
 });
 
+app.post('/subscribe', async function(req, res) {
+    let reqBody = req.body
+    const username = reqBody.username;
+    const subscriptions = reqBody.subscriptions
+    let user = await createUser(username, subscriptions);
+    if(user !== null) {
+        user.expires = new Date(Date.now() + 1000000);
+        res.cookie("userData", user);
+        res.render('topics', user);
+    } else {
+        res.status(500).send('Internal Server Error.');
+    }
+});
+
+app.post('/login', async function (req, res) {
+    const username = req.body.username;
+    let user = await getUser(username);
+    if (user === null) {
+        res.status(401).render('subscribe', { instructions: 'The username is not recognized, please subscribe!' });
+    } else {
+        user.expires = new Date(Date.now() + 1000000);
+        res.cookie("userData", user);
+        res.status(200).render('topics', user);
+    }
+});
+
 app.get('*', async function (req, res) {
     let now = Date.now();
     let cookies = req.cookies;
-    if(cookies == null) {
-        res.status(200).render('subscribe', { instructions: '' });
-    }
     let hasCookie = cookies.hasOwnProperty('userData');
     if(hasCookie) {
         let userCookie = cookies.userData;
@@ -52,7 +75,7 @@ app.get('*', async function (req, res) {
                 } else if(path === '/login' || path === '/login.html') {
                     res.status(200).render('login', { instructions: '' });
                 } else {
-                    user.expires = new Date(Date.now() + 1000000)
+                    user.expires = new Date(Date.now() + 1000000);
                     res.cookie("userData", user);
                     res.status(200).render('topics', user);
                 }
@@ -61,33 +84,9 @@ app.get('*', async function (req, res) {
             }
         }
     } else {
-        res.status(200).render('subscribe', { instructions: '' });
-    }
-});
-
-app.post('/subscribe', async function(req, res) {
-    let reqBody = req.body
-    const username = reqBody.username;
-    const subscriptions = reqBody.subscriptions
-    let user = await createUser(username, subscriptions);
-    if(user !== null) {
-        user.expires = new Date(Date.now() + 1000000)
-        res.cookie("userData", user);
-        res.render('topics', user);
-    } else {
-        res.status(500).send('Internal Server Error.');
-    }
-});
-
-app.post('/login', async function (req, res) {
-    const username = req.body.username;
-    let user = await getUser(username);
-    if (user === null) {
-        res.status(401).render('subscribe', { instructions: 'The username is not recognized, please subscribe!' });
-    } else {
-        user.expires = new Date(Date.now() + 1000000)
-        res.cookie("userData", user);
-        res.status(200).render('topics', user);
+        let topics = await getAllTopics();
+        let data = { instructions: '' , 'topics': topics }
+        res.status(200).render('subscribe', data);
     }
 });
 
@@ -97,10 +96,10 @@ async function getUser(username) {
     let returnUser = null;
     try {
         const database = client.db('isat_twitter');
-        const parts = database.collection('users');
+        const collection = database.collection('users');
         const query = { 'username': username };
         // see if this username + password combination exists
-        const user = await parts.findOne(query);
+        const user = await collection.findOne(query);
         if(user !== null) {
             // the user exists
             returnUser = user;
@@ -113,28 +112,46 @@ async function getUser(username) {
     return returnUser;
 }
 
+async function getAllTopics() {
+    // https://www.mongodb.com/languages/mongodb-with-nodejs
+    const client = new MongoClient(mongoUri);
+    let topics = null;
+    try {
+        const database = client.db('isat_twitter');
+        const collection = database.collection('topics');
+        // https://stackoverflow.com/questions/33425565/how-to-return-array-of-string-with-mongodb-aggregation
+        topics = await collection.distinct('topic');
+    } catch(error) {
+        console.error(error);
+    } finally {
+        await client.close();
+    }
+    return topics;
+}
+
 async function createUser(username, subscriptions) {
     // https://www.mongodb.com/languages/mongodb-with-nodejs
     const client = new MongoClient(mongoUri);
     let newUser = {username: username, subscriptions: subscriptions};
     try {
+        // https://www.w3schools.com/nodejs/nodejs_mongodb_find.asp
         const database = client.db('isat_twitter');
-        const parts = database.collection('users');
+        const collection = database.collection('users');
         let query = { 'username': username };
         // see if this username exists
-        const user = await parts.findOne(query);
+        const user = await collection.findOne(query);
         if(user === null) {
             // the user does not exist
-            await parts.insertOne(newUser);
+            await collection.insertOne(newUser);
         } else {
-            for(let i = 0; i <= 99999; i++) {
+            for(let i = 0; i <= 9999999; i++) {
                 let newUsername = username + i.toString();
                 let query = { 'username': newUsername };
-                const find = await parts.findOne(query);
+                const find = await collection.findOne(query);
                 if(find === null) {
                     // the username is unique
                     newUser = {username: newUsername, subscriptions: subscriptions};
-                    await parts.insertOne(newUser);
+                    await collection.insertOne(newUser);
                     break;
                 }
             }
