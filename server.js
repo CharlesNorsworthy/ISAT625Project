@@ -35,7 +35,7 @@ app.post('/subscribe', async function(req, res) {
     let user = await createUser(username, subscriptions);
     if(user !== null) {
         user.expires = new Date(Date.now() + 1000000);
-        res.cookie("userData", user);
+        res.cookie('userData', user);
         res.render('topics', user);
     } else {
         res.status(500).send('Internal Server Error.');
@@ -51,6 +51,20 @@ app.post('/login', async function (req, res) {
         user.expires = new Date(Date.now() + 1000000);
         res.cookie("userData", user);
         res.status(200).render('topics', user);
+    }
+});
+
+app.get('/expire_cookie', function(req, res) {
+    let expiredTime = Date.now() - 1;
+    let cookies = req.cookies;
+    let hasCookie = cookies.hasOwnProperty('userData');
+    if(hasCookie) {
+        let userCookie = cookies.userData;
+        userCookie.expires = expiredTime
+        res.cookie('userData', userCookie);
+        res.status(200).send('\'userData\' cookie expired.');
+    } else {
+        res.status(200).send('\'userData\' cookie does not exist.');
     }
 });
 
