@@ -10,13 +10,12 @@
             </p>
             <p>Select topics to subscribe to:</p>
             <!-- https://www.geeksforgeeks.org/use-ejs-as-template-engine-in-node-js/ -->
-            <ul>
-                <% topics.forEach((item)=>{%>
-                <li>
-                    <%=item%>
-                </li>
-                <%});%>
-            </ul>
+            <% topics.forEach((item) => { %>
+                <!-- https://www.w3schools.com/tags/att_input_type_checkbox.asp -->
+                <input type="checkbox" id="<%=item%>" name="<%=item%>" value="<%=item%>">
+                <label for="<%=item%>"><%=item%></label>
+                <br>
+            <% }); %>
             <p>
                 <input type="submit">
             </p>
