@@ -1,23 +1,6 @@
 /* https://stackoverflow.com/questions/4309950/how-to-align-input-forms-in-html */
-form {
+body {
     display: table;
-    color: chartreuse;
-}
-
-p {
-    display: table-row;
     text-indent: 5px;
     line-height: 1.5;
-    color: chartreuse;
-}
-
-label {
-    display: table-cell;
-    text-align: right;
-    color: chartreuse;
-}
-
-input {
-    display: table-cell;
-    color: chartreuse;
 }

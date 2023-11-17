@@ -23,6 +23,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.set('view engine', 'ejs');
+// https://stackoverflow.com/questions/24582338/how-can-i-include-css-files-using-node-express-and-ejs
+app.use(express.static(__dirname + '/views'));
 
 const databaseName = 'isat_twitter';
 
@@ -58,7 +60,9 @@ app.post('/login', async function (req, res) {
     const username = req.body.username;
     let user = await getUser(username);
     if (user === null) {
-        res.status(401).render('subscribe', { instructions: 'The username is not recognized, please subscribe!' });
+        let topics = await getAllTopics();
+        let data = { instructions: 'The username is not recognized, please subscribe!', 'topics': topics, 'numTopicsShowing': 2 };
+        res.status(401).render('subscribe', data);
     } else {
         user.expires = new Date(Date.now() + 1000000);
         res.cookie("userData", user);
@@ -89,7 +93,7 @@ app.get('*', async function (req, res) {
         const expirationDate = userCookie.expires;
         if(expirationDate === undefined) {
             let topics = await getAllTopics();
-            let data = { instructions: '', 'topics': topics };
+            let data = { instructions: '', 'topics': topics, 'numTopicsShowing': 2 };
             res.status(200).render('subscribe', data);
         } else if(now > expirationDate) {
             res.status(419).render('login', { instructions: 'Cookie expired. Please login.' });
@@ -100,9 +104,8 @@ app.get('*', async function (req, res) {
             if(user !== null) {
                 if(path === '/subscribe' || path === '/subscribe.html') {
                     let topics = await getAllTopics();
-                    let data = { instructions: '', 'topics': topics };
-                    res.status(200).render('subscribe', data);
-                } else if(path === '/login' || path === '/login.html') {
+                    let data = { instructions: '', 'topics': topics, 'numTopicsShowing': 2 };
+                    res.status(200).render('subscribe', data);} else if(path === '/login' || path === '/login.html') {
                     res.status(200).render('login', { instructions: '' });
                 } else {
                     user.expires = new Date(Date.now() + 1000000);
@@ -111,13 +114,13 @@ app.get('*', async function (req, res) {
                 }
             } else {
                 let topics = await getAllTopics();
-                let data = { instructions: '', 'topics': topics };
+                let data = { instructions: '', 'topics': topics, 'numTopicsShowing': 2 };
                 res.status(200).render('subscribe', data);
             }
         }
     } else {
         let topics = await getAllTopics();
-        let data = { instructions: '', 'topics': topics };
+        let data = { instructions: '', 'topics': topics, 'numTopicsShowing': 2 };
         res.status(200).render('subscribe', data);
     }
 });
@@ -235,4 +238,18 @@ async function readFileAsync(filepath) {
         fileString = data;
     })
     return fileString;
+}
+
+function showMore(numTopics, numTopicsShowing) {
+    alert("in showMore");
+    // https://stackoverflow.com/questions/22493727/creating-a-read-more-link-that-extends-the-content-on-the-page
+    let newNumTopicsShowing = numTopicsShowing + 3;
+    if(newNumTopicsShowing >= numTopics) {
+        document.getElementById('showMoreLink').remove();
+    }
+    for(let i = numTopicsShowing; i < numTopicsShowing; i++) {
+        document.getElementById('checkbox-' + i.toString()).style.display = 'block';
+        document.getElementById('topic-' + i.toString()).style.display = 'block';
+    }
+    return numTopicsShowing;
 }

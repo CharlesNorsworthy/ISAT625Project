@@ -1,5 +1,6 @@
 <html lang="en">
     <link rel="stylesheet" type="text/css" href="style.css">
+    <script src="../server.js"></script>
     <body>
         <h1>Create an Account on ISAT Twitter</h1>
         <form action="/subscribe" method="POST">
@@ -10,12 +11,32 @@
             </p>
             <p>Select topics to subscribe to:</p>
             <!-- https://www.geeksforgeeks.org/use-ejs-as-template-engine-in-node-js/ -->
-            <% topics.forEach((item) => { %>
-                <!-- https://www.w3schools.com/tags/att_input_type_checkbox.asp -->
-                <input type="checkbox" id="<%=item%>" name="<%=item%>" value="<%=item%>">
-                <label for="<%=item%>"><%=item%></label>
-                <br>
-            <% }); %>
+            <%
+            let numTopics = topics.length;
+            for(let i in topics) {
+                let item = topics[i];
+                if(i >= numTopicsShowing) {
+            %>
+            <input type="checkbox" id="checkbox-<%=i%>" name="<%=item%>" value="<%=item%>" style="display:none;">
+            <label id="topic-<%=i%>" for="checkbox-<%=i%>" style="display:none;"><%=item%></label>
+            <br>
+            <%
+                } else {
+            %>
+            <!-- https://www.w3schools.com/tags/att_input_type_checkbox.asp -->
+            <input type="checkbox" id="checkbox-<%=i%>" name="<%=item%>" value="<%=item%>">
+            <label id="topic-<%=i%>" for="checkbox-<%=i%>"><%=item%></label>
+            <br>
+            <%
+                }
+            }
+            if(numTopics !== numTopicsShowing) {
+            %>
+            <!-- https://stackoverflow.com/questions/22493727/creating-a-read-more-link-that-extends-the-content-on-the-page -->
+            <a href="javascript:showMore(numTopics, numTopicsShowing)" id="showMoreLink">Show More</a>
+            <%
+            }
+            %>
             <p>
                 <input type="submit">
             </p>
