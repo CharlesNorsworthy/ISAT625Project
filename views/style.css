@@ -1,6 +1,4 @@
-/* https://stackoverflow.com/questions/4309950/how-to-align-input-forms-in-html */
 body {
     display: table;
-    text-indent: 5px;
     line-height: 1.5;
 }
