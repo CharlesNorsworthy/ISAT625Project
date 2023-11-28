@@ -1,0 +1,29 @@
+<html lang="en">
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <h1>Edit Subscriptions for User <%= username %></h1>
+    <p>All Topics:</p>
+    <form action="/edit_subscriptions" method="POST">
+        <%
+        for(let i in topics) {
+            let item = topics[i];
+            if(item in subscriptions) {
+        %>
+        <input type="checkbox" id="checkbox-<%=i%>" name="<%=item%>" value="<%=item%>" checked>
+        <%
+            } else {
+        %>
+        <input type="checkbox" id="checkbox-<%=i%>" name="<%=item%>" value="<%=item%>">
+        <%
+            }
+        %>
+        <!-- https://www.w3schools.com/tags/att_input_type_checkbox.asp -->
+        <label id="topic-<%=i%>" for="checkbox-<%=i%>"><%=item%></label>
+        <br>
+        <%
+        }
+        %>
+        <p>
+            <input type="submit">
+        </p>
+    </form>
+</html>

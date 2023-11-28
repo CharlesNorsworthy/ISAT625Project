@@ -1,0 +1,18 @@
+<html lang="en">
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <h1>Welcome <%= username %>!</h1>
+    <p>Subscriptions:</p>
+    <%
+    for(let i in subscriptions) {
+        let item = subscriptions[i];
+    %>
+    <a href="/view_topics?topic=<%=item%>" id="view_topic_<%=item%>"><%=item%></a>
+    <br>
+    <%
+    }
+    %>
+    <br>
+    <a href="/create_post" id="createPostLink">Create New Post</a>
+    <br>
+    <a href="/edit_subscriptions" id="editSubscriptionsLink">Edit Subscriptions</a>
+</html>
