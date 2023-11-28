@@ -246,6 +246,46 @@ async function editUser(username, subscriptions) {
     return editedUser;
 }
 
+async function createTopic(topicName) {
+    const client = new MongoClient(mongoUri);
+    let newTopic = { 'topic': topicName, 'posts': [] };
+    try {
+        // see if this topic exists
+        const dbTopic = await getDatabaseItem(client, 'topics', { 'topic': topicName });
+        if(dbTopic === null) {
+            // the topic does not exist
+            await addDatabaseItem(client, 'topics', newTopic);
+        }
+    } catch(error) {
+        console.error(error);
+        return null;
+    } finally {
+        await client.close();
+    }
+}
+
+async function createPost(topicName, text, user) {
+    const client = new MongoClient(mongoUri);
+    let newPost = { 'text': text, 'user': user, 'replies': [] };
+    try {
+        // see if the topic exists
+        const dbTopic = await getDatabaseItem(client, 'topics', topicName);
+        if(dbTopic !== null) {
+            // https://stackoverflow.com/questions/11077202/in-mongodb-is-it-practical-to-keep-all-comments-for-a-post-in-one-document
+            //TODO: implement
+        }
+    } catch(error) {
+        console.error(error);
+        return null;
+    } finally {
+        await client.close();
+    }
+}
+
+async function createReply(post, replyText, replyUser) {
+    //TODO: implement
+}
+
 async function getAllTopics() {
     // https://www.mongodb.com/languages/mongodb-with-nodejs
     const client = new MongoClient(mongoUri);
