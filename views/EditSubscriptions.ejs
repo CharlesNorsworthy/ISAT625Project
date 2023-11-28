@@ -6,7 +6,7 @@
         <%
         for(let i in topics) {
             let item = topics[i];
-            if(item in subscriptions) {
+            if(subscriptions.includes(item)) {
         %>
         <input type="checkbox" id="checkbox-<%=i%>" name="<%=item%>" value="<%=item%>" checked>
         <%
@@ -22,6 +22,7 @@
         <%
         }
         %>
+        <input id="username" name="username" type="hidden" value="<%=username%>" readonly>
         <p>
             <input type="submit">
         </p>

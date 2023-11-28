@@ -1,0 +1,50 @@
+<html lang="en">
+    <style>
+        /* https://stackoverflow.com/questions/4309950/how-to-align-input-forms-in-html */
+        form { display: table; }
+        p { display: table-row; text-indent: 5px; line-height: 2; }
+        label { display: table-cell; text-align: right; }
+        input { display: table-cell; text-align: right; }
+        /* https://stackoverflow.com/questions/1839403/how-do-i-align-a-label-and-a-textarea */
+        textarea { display: flex; text-align: right; text-indent: 5px; }
+    </style>
+    <body>
+        <h1>Create New Post</h1>
+        <form action="./create_post" method="POST">
+            <!--https://stackoverflow.com/questions/4309950/how-to-align-input-forms-in-html-->
+            <p>
+                <label for="new_topic">New Topic:</label>
+                <input id="new_topic" name="new_topic" type="text" value="">
+            </p>
+            <p>
+                Or, select an existing topic:
+            </p>
+            <p>
+                <label for="select_topic">Select Topic:</label>
+                <select name="select_topic" id="select_topic">
+                    <%
+                    for(let i in topics) {
+                        let item = topics[i];
+                    %>
+                    <option value="<%=item%>"><%=item%></option>
+                    <%
+                    }
+                    %>
+                </select>
+            </p>
+            <p>
+                <label for="title">Title:</label>
+                <input id="title" name="title" type="text" value="">
+            </p>
+            <p>
+                <label for="posting_text">Posting text:</label>
+                <textarea id="posting_text" name="posting_text"></textarea>
+            </p>
+            <input id="username" name="username" type="hidden" value="<%=username%>" readonly>
+            <p>
+                <input type="submit">
+            </p>
+            <p id="instructions" style="color:red;"></p>
+        </form>
+    </body>
+</html>

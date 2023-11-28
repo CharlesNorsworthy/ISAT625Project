@@ -27,6 +27,7 @@ app.set('view engine', 'ejs');
 app.use(express.static(__dirname + '/views'));
 
 const databaseName = 'isat_twitter';
+const cookieName = 'isatTwitterCookie';
 
 app.get('/style.css', function(req, res) {
     res.send(readFileAsync(__dirname + '/views/style.css'));
@@ -35,22 +36,12 @@ app.get('/style.css', function(req, res) {
 app.post('/subscribe', async function(req, res) {
     let reqBody = req.body;
     const username = reqBody.username;
-    let subscriptions = [];
-    // include subscriptions
-    // https://stackoverflow.com/questions/17385009/can-i-iterate-over-the-query-string-parameters-using-expressjs
-    for(let queryKey in reqBody) {
-        if(reqBody.hasOwnProperty(queryKey)) {
-            let value = reqBody[queryKey].toString();
-            if(queryKey === value) {
-                subscriptions.push(queryKey);
-            }
-        }
-    }
+    let subscriptions = await getSubscriptions(reqBody);
     let user = await createUser(username, subscriptions);
     if(user !== null) {
         user.expires = new Date(Date.now() + 1000000);
-        res.cookie('userData', user);
-        res.render('topics', user);
+        res.cookie(cookieName, user);
+        res.render('SubscribedTopics', user);
     } else {
         res.status(500).send('Internal Server Error.');
     }
@@ -65,31 +56,66 @@ app.post('/login', async function (req, res) {
         res.status(401).render('subscribe', data);
     } else {
         user.expires = new Date(Date.now() + 1000000);
-        res.cookie("userData", user);
-        res.status(200).render('topics', user);
+        res.cookie(cookieName, user);
+        res.status(200).render('SubscribedTopics', user);
+    }
+});
+
+app.post('/edit_subscriptions', async function (req, res) {
+    let reqBody = req.body;
+    const username = reqBody.username;
+    let subscriptions = await getSubscriptions(reqBody);
+    let user = await getUser(username);
+    if (user === null) {
+        let topics = await getAllTopics();
+        let data = { instructions: 'The username is not recognized, please subscribe!', 'topics': topics, 'initNumTopicsShowing': 3 };
+        res.status(401).render('subscribe', data);
+    } else {
+        let editedUser = await editUser(username, subscriptions);
+        editedUser.expires = new Date(Date.now() + 1000000);
+        res.cookie(cookieName, editedUser);
+        res.status(200).render('SubscribedTopics', editedUser);
+    }
+});
+
+app.post('/create_post', async function (req, res) {
+    let reqBody = req.body;
+    const username = reqBody.username;
+    let user = await getUser(username);
+    if (user === null) {
+        let topics = await getAllTopics();
+        let data = { instructions: 'The username is not recognized, please subscribe!', 'topics': topics, 'initNumTopicsShowing': 3 };
+        res.status(401).render('subscribe', data);
+    } else {
+        //TODO: put in db
+        user.expires = new Date(Date.now() + 1000000);
+        res.cookie(cookieName, user);
+        res.status(200).render('SubscribedTopics', user);
     }
 });
 
 app.get('/expire_cookie', function(req, res) {
     let expiredTime = Date.now() - 1;
     let cookies = req.cookies;
-    let hasCookie = cookies.hasOwnProperty('userData');
+    let hasCookie = cookies.hasOwnProperty(cookieName);
     if(hasCookie) {
-        let userCookie = cookies.userData;
+        let userCookie = cookies[cookieName];
         userCookie.expires = expiredTime;
-        res.cookie('userData', userCookie);
-        res.status(200).send('\'userData\' cookie expired.');
+        res.cookie(cookieName, userCookie);
+        res.status(200).send('\'' + cookieName + '\'' + ' cookie expired.');
     } else {
-        res.status(200).send('\'userData\' cookie does not exist.');
+        res.status(200).send('\'' + cookieName + '\'' + ' cookie does not exist.');
     }
 });
 
 app.get('*', async function (req, res) {
+    // TODO: consider redirecting instead of handling here
     let now = Date.now();
+    let path = req.url.toString();
     let cookies = req.cookies;
-    let hasCookie = cookies.hasOwnProperty('userData');
+    let hasCookie = cookies.hasOwnProperty(cookieName);
     if(hasCookie) {
-        let userCookie = cookies.userData;
+        let userCookie = cookies[cookieName];
         const expirationDate = userCookie.expires;
         if(expirationDate === undefined) {
             let topics = await getAllTopics();
@@ -98,7 +124,6 @@ app.get('*', async function (req, res) {
         } else if(now > expirationDate) {
             res.status(419).render('login', { instructions: 'Cookie expired. Please login.' });
         } else {
-            let path = req.url.toString();
             const username = userCookie.username;
             let user = await getUser(username);
             if(user !== null) {
@@ -108,62 +133,38 @@ app.get('*', async function (req, res) {
                     res.status(200).render('subscribe', data);
                 } else if(path === '/login' || path === '/login.html') {
                     res.status(200).render('login', { instructions: '' });
+                } else if (path === '/create_post') {
+                    let topics = await getAllTopics();
+                    res.status(200).render('CreatePost', { 'topics': topics, 'username': user.username });
+                } else if (path === '/edit_subscriptions') {
+                    let topics = await getAllTopics();
+                    res.status(200).render('EditSubscriptions', { 'topics': topics, 'username':
+                        user.username, 'subscriptions': user.subscriptions });
                 } else {
                     user.expires = new Date(Date.now() + 1000000);
-                    res.cookie("userData", user);
-                    res.status(200).render('topics', user);
+                    res.cookie(cookieName, user);
+                    res.status(200).render('SubscribedTopics', user);
                 }
             } else {
-                let topics = await getAllTopics();
-                let data = { instructions: '', 'topics': topics, 'initNumTopicsShowing': 3 };
-                res.status(200).render('subscribe', data);
+                if(path === '/login' || path === '/login.html') {
+                    res.status(200).render('login', { instructions: '' });
+                } else {
+                    let topics = await getAllTopics();
+                    let data = { instructions: '', 'topics': topics, 'initNumTopicsShowing': 3 };
+                    res.status(200).render('subscribe', data);
+                }
             }
         }
     } else {
-        let topics = await getAllTopics();
-        let data = { instructions: '', 'topics': topics, 'initNumTopicsShowing': 3 };
-        res.status(200).render('subscribe', data);
+        if(path === '/login' || path === '/login.html') {
+            res.status(200).render('login', { instructions: '' });
+        } else {
+            let topics = await getAllTopics();
+            let data = { instructions: '', 'topics': topics, 'initNumTopicsShowing': 3 };
+            res.status(200).render('subscribe', data);
+        }
     }
 });
-
-async function getUser(username) {
-    // https://www.mongodb.com/blog/post/quick-start-nodejs-mongodb-how-to-get-connected-to-your-database
-    const client = new MongoClient(mongoUri);
-    let returnUser = null;
-    try {
-        const database = client.db('isat_twitter');
-        const collection = database.collection('users');
-        const query = { 'username': username };
-        // see if this username + password combination exists
-        const user = await collection.findOne(query);
-        if(user !== null) {
-            // the user exists
-            returnUser = user;
-        }
-    } catch(error) {
-        console.error(error);
-    } finally {
-        await client.close();
-    }
-    return returnUser;
-}
-
-async function getAllTopics() {
-    // https://www.mongodb.com/languages/mongodb-with-nodejs
-    const client = new MongoClient(mongoUri);
-    let topics = null;
-    try {
-        const database = client.db(databaseName);
-        const collection = database.collection('topics');
-        // https://stackoverflow.com/questions/33425565/how-to-return-array-of-string-with-mongodb-aggregation
-        topics = await collection.distinct('topic');
-    } catch(error) {
-        console.error(error);
-    } finally {
-        await client.close();
-    }
-    return topics;
-}
 
 async function createUser(username, subscriptions) {
     // https://www.mongodb.com/languages/mongodb-with-nodejs
@@ -204,6 +205,78 @@ async function createUser(username, subscriptions) {
     }
     return newUser;
 }
+
+async function getUser(username) {
+    // https://www.mongodb.com/blog/post/quick-start-nodejs-mongodb-how-to-get-connected-to-your-database
+    const client = new MongoClient(mongoUri);
+    let returnUser = null;
+    try {
+        const database = client.db('isat_twitter');
+        const collection = database.collection('users');
+        const query = { 'username': username };
+        // see if this username + password combination exists
+        const user = await collection.findOne(query);
+        if(user !== null) {
+            // the user exists
+            returnUser = user;
+        }
+    } catch(error) {
+        console.error(error);
+    } finally {
+        await client.close();
+    }
+    return returnUser;
+}
+
+async function editUser(username, subscriptions) {
+    const client = new MongoClient(mongoUri);
+    let editedUser = { 'username': username, 'subscriptions': subscriptions };
+    try {
+        const database = client.db('isat_twitter');
+        const collection = database.collection('users');
+        const query = { 'username': username };
+        // https://www.w3schools.com/nodejs/nodejs_mongodb_update.asp
+        const editQuery = { $set: editedUser };
+        await collection.updateOne(query, editQuery);
+    } catch(error) {
+        console.error(error);
+    } finally {
+        await client.close();
+    }
+    return editedUser;
+}
+
+async function getAllTopics() {
+    // https://www.mongodb.com/languages/mongodb-with-nodejs
+    const client = new MongoClient(mongoUri);
+    let topics = null;
+    try {
+        const database = client.db(databaseName);
+        const collection = database.collection('topics');
+        // https://stackoverflow.com/questions/33425565/how-to-return-array-of-string-with-mongodb-aggregation
+        topics = await collection.distinct('topic');
+    } catch(error) {
+        console.error(error);
+    } finally {
+        await client.close();
+    }
+    return topics;
+}
+
+async function getSubscriptions(reqBody) {
+    let subscriptions = [];
+    // https://stackoverflow.com/questions/17385009/can-i-iterate-over-the-query-string-parameters-using-expressjs
+    for(let queryKey in reqBody) {
+        if(reqBody.hasOwnProperty(queryKey)) {
+            let value = reqBody[queryKey].toString();
+            if(queryKey === value) {
+                subscriptions.push(queryKey);
+            }
+        }
+    }
+    return subscriptions;
+}
+
 
 async function getDatabaseItem(client, collection, query) {
     // https://www.w3schools.com/nodejs/nodejs_mongodb_find.asp
