@@ -87,7 +87,17 @@ app.post('/create_post', async function (req, res) {
         let data = { instructions: 'The username is not recognized, please subscribe!', 'topics': topics, 'initNumTopicsShowing': 3 };
         res.status(401).render('subscribe', data);
     } else {
-        //TODO: put in db
+        const newTopic = reqBody.new_topic;
+        const existingTopic = reqBody.select_topic;
+        const postTitle = reqBody.title;
+        const postText = reqBody.posting_text;
+        let topic = '';
+        if(existingTopic === 'none') {
+            topic = newTopic;
+        } else {
+            topic = existingTopic;
+        }
+        await createPost(topic, username, postTitle, postText);
         user.expires = new Date(Date.now() + 1000000);
         res.cookie(cookieName, user);
         res.status(200).render('SubscribedTopics', user);
@@ -264,15 +274,16 @@ async function createTopic(topicName) {
     }
 }
 
-async function createPost(topicName, text, user) {
+async function createPost(topicName, username, postTitle, postText) {
     const client = new MongoClient(mongoUri);
-    let newPost = { 'text': text, 'user': user, 'replies': [] };
+    let newPost = { 'title': postTitle, 'text': postText, 'user': username, 'replies': [] };
     try {
-        // see if the topic exists
-        const dbTopic = await getDatabaseItem(client, 'topics', topicName);
+        const dbTopic = await getDatabaseItem(client, 'topics', { 'topic': topicName });
         if(dbTopic !== null) {
             // https://stackoverflow.com/questions/11077202/in-mongodb-is-it-practical-to-keep-all-comments-for-a-post-in-one-document
-            //TODO: implement
+            const updateId = { _id: dbTopic['_id'] };
+            const updateQuery = { $push: { 'posts': newPost }};
+            await updateDatabaseCollection(client, 'topics', updateId, updateQuery);
         }
     } catch(error) {
         console.error(error);
@@ -329,6 +340,12 @@ async function addDatabaseItem(client, collection, item) {
     const db = client.db(databaseName);
     const dbCollection = db.collection(collection);
     await dbCollection.insertOne(item);
+}
+
+async function updateDatabaseCollection(client, collection, updateId, query) {
+    const db = client.db(databaseName);
+    const dbCollection = db.collection(collection);
+    await dbCollection.updateOne(updateId, query);
 }
 
 function readFileSync(filepath) {

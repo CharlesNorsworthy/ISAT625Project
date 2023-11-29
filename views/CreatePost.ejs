@@ -4,9 +4,9 @@
         form { display: table; }
         p { display: table-row; text-indent: 5px; line-height: 2; }
         label { display: table-cell; text-align: right; }
-        input { display: table-cell; text-align: right; }
+        input { display: table-cell; }
         /* https://stackoverflow.com/questions/1839403/how-do-i-align-a-label-and-a-textarea */
-        textarea { display: flex; text-align: right; text-indent: 5px; }
+        textarea { display: flex; }
     </style>
     <body>
         <h1>Create New Post</h1>
@@ -17,12 +17,13 @@
                 <input id="new_topic" name="new_topic" type="text" value="">
             </p>
             <p>
+                <label hidden></label>
                 Or, select an existing topic:
             </p>
             <p>
                 <label for="select_topic">Select Topic:</label>
                 <select name="select_topic" id="select_topic">
-                    <option value="none">none</option>
+                    <option value="none"></option>
                     <%
                     for(let i in topics) {
                         let item = topics[i];
