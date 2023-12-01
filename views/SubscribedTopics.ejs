@@ -1,13 +1,34 @@
 <html lang="en">
     <link rel="stylesheet" type="text/css" href="style.css">
+    <script>
+        function showAllPosts(topic) {
+            // TODO: implement
+        }
+    </script>
     <h1>Welcome <%= username %>!</h1>
     <p>Subscriptions:</p>
     <%
-    for(let i in subscriptions) {
-        let item = subscriptions[i];
+    for(const [topicName, posts] of Object.entries(postsDict)) {
+        console.log('key ' + topicName);
+        console.log('value ' + posts);
     %>
-    <a href="/view_topics?topic=<%=item%>" id="view_topic_<%=item%>"><%=item%></a>
+    <h3>Topic: <%=topicName%></h3>
+    <%
+        for(let i in posts) {
+            if(i >= 3) {
+                break;
+            }
+            let post = posts[i];
+    %>
+    <h5>Post Title: <%=post.title%></h5>
+    <p>Post text: <%=post.text%></p>
+    <a href="/topics/full_post/?post_id=<%=post._id%>" id="full_post_<%=post._id%>">See full posting</a>
     <br>
+    <%
+        }
+    %>
+    <br>
+    <a href="#" id="view_topic_<%=topicName%>" onclick="showAllPosts(<%=posts%>)">Show More Posts for Topic: <%=topicName%></a>
     <%
     }
     %>

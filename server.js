@@ -5,6 +5,7 @@
 /// https://www.npmjs.com/package/node-html-parser
 /// https://www.geeksforgeeks.org/use-ejs-as-template-engine-in-node-js/
 /// https://www.geeksforgeeks.org/express-js-res-redirect-function/
+/// https://www.npmjs.com/package/bson-objectid
 
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -16,6 +17,7 @@ const { MongoClient } = require('mongodb');
 const NodeHtmlParser = require('node-html-parser');
 const mongoUri = 'mongodb+srv://' + process.env.USERNAME + ':' + process.env.PASSWORD +
     '@cluster0.jt7yc3y.mongodb.net/?retryWrites=true&w=majority';
+const ObjectID = require("bson-objectid");
 
 app.listen(port);
 console.log('Server started at http://localhost:' + port);
@@ -28,6 +30,8 @@ app.use(express.static(__dirname + '/views'));
 
 const databaseName = 'isat_twitter';
 const cookieName = 'isatTwitterCookie';
+const topicsCollectionName = 'topics';
+const usersCollectionName = 'users';
 
 app.get('/style.css', function(req, res) {
     res.send(readFileAsync(__dirname + '/views/style.css'));
@@ -41,7 +45,8 @@ app.post('/subscribe', async function(req, res) {
     if(user !== null) {
         user.expires = new Date(Date.now() + 1000000);
         res.cookie(cookieName, user);
-        res.render('SubscribedTopics', user);
+        let postsDict = await getPostsDict(subscriptions);
+        res.render('SubscribedTopics', { 'username': username, 'postsDict': postsDict });
     } else {
         res.status(500).send('Internal Server Error.');
     }
@@ -52,12 +57,13 @@ app.post('/login', async function (req, res) {
     let user = await getUser(username);
     if (user === null) {
         let topics = await getAllTopics();
-        let data = { instructions: 'The username is not recognized, please subscribe!', 'topics': topics, 'initNumTopicsShowing': 3 };
+        let data = { 'instructions': 'The username is not recognized, please subscribe!', 'topics': topics, 'initNumTopicsShowing': 3 };
         res.status(401).render('subscribe', data);
     } else {
         user.expires = new Date(Date.now() + 1000000);
         res.cookie(cookieName, user);
-        res.status(200).render('SubscribedTopics', user);
+        let postsDict = await getPostsDict(user.subscriptions);
+        res.render('SubscribedTopics', { 'username': username, 'postsDict': postsDict });
     }
 });
 
@@ -68,13 +74,14 @@ app.post('/edit_subscriptions', async function (req, res) {
     let user = await getUser(username);
     if (user === null) {
         let topics = await getAllTopics();
-        let data = { instructions: 'The username is not recognized, please subscribe!', 'topics': topics, 'initNumTopicsShowing': 3 };
+        let data = { 'instructions': 'The username is not recognized, please subscribe!', 'topics': topics, 'initNumTopicsShowing': 3 };
         res.status(401).render('subscribe', data);
     } else {
         let editedUser = await editUser(username, subscriptions);
         editedUser.expires = new Date(Date.now() + 1000000);
         res.cookie(cookieName, editedUser);
-        res.status(200).render('SubscribedTopics', editedUser);
+        let postsDict = await getPostsDict(subscriptions);
+        res.render('SubscribedTopics', { 'username': username, 'postsDict': postsDict });
     }
 });
 
@@ -84,14 +91,14 @@ app.post('/create_post', async function (req, res) {
     let user = await getUser(username);
     if (user === null) {
         let topics = await getAllTopics();
-        let data = { instructions: 'The username is not recognized, please subscribe!', 'topics': topics, 'initNumTopicsShowing': 3 };
+        let data = { 'instructions': 'The username is not recognized, please subscribe!', 'topics': topics, 'initNumTopicsShowing': 3 };
         res.status(401).render('subscribe', data);
     } else {
         const newTopic = reqBody.new_topic;
         const existingTopic = reqBody.select_topic;
         const postTitle = reqBody.title;
         const postText = reqBody.posting_text;
-        let topic = '';
+        let topic;
         if(existingTopic === 'none') {
             topic = newTopic;
         } else {
@@ -100,7 +107,8 @@ app.post('/create_post', async function (req, res) {
         await createPost(topic, username, postTitle, postText);
         user.expires = new Date(Date.now() + 1000000);
         res.cookie(cookieName, user);
-        res.status(200).render('SubscribedTopics', user);
+        let postsDict = await getPostsDict(user.subscriptions);
+        res.render('SubscribedTopics', { 'username': username, 'postsDict': postsDict });
     }
 });
 
@@ -129,20 +137,20 @@ app.get('*', async function (req, res) {
         const expirationDate = userCookie.expires;
         if(expirationDate === undefined) {
             let topics = await getAllTopics();
-            let data = { instructions: '', 'topics': topics, 'initNumTopicsShowing': 3 };
+            let data = { 'instructions': '', 'topics': topics, 'initNumTopicsShowing': 3 };
             res.status(200).render('subscribe', data);
         } else if(now > expirationDate) {
-            res.status(419).render('login', { instructions: 'Cookie expired. Please login.' });
+            res.status(419).render('login', { 'instructions': 'Cookie expired. Please login.' });
         } else {
             const username = userCookie.username;
             let user = await getUser(username);
             if(user !== null) {
-                if(path === '/subscribe' || path === '/subscribe.html') {
+                if(path === '/subscribe') {
                     let topics = await getAllTopics();
-                    let data = { instructions: '', 'topics': topics, 'initNumTopicsShowing': 3 };
+                    let data = { 'instructions': '', 'topics': topics, 'initNumTopicsShowing': 3 };
                     res.status(200).render('subscribe', data);
-                } else if(path === '/login' || path === '/login.html') {
-                    res.status(200).render('login', { instructions: '' });
+                } else if(path === '/login') {
+                    res.status(200).render('login', { 'instructions': '' });
                 } else if (path === '/create_post') {
                     let topics = await getAllTopics();
                     res.status(200).render('CreatePost', { 'topics': topics, 'username': user.username });
@@ -153,24 +161,25 @@ app.get('*', async function (req, res) {
                 } else {
                     user.expires = new Date(Date.now() + 1000000);
                     res.cookie(cookieName, user);
-                    res.status(200).render('SubscribedTopics', user);
+                    let postsDict = await getPostsDict(user.subscriptions);
+                    res.render('SubscribedTopics', { 'username': username, 'postsDict': postsDict });
                 }
             } else {
-                if(path === '/login' || path === '/login.html') {
-                    res.status(200).render('login', { instructions: '' });
+                if(path === '/login') {
+                    res.status(200).render('login', { 'instructions': '' });
                 } else {
                     let topics = await getAllTopics();
-                    let data = { instructions: '', 'topics': topics, 'initNumTopicsShowing': 3 };
+                    let data = { 'instructions': '', 'topics': topics, 'initNumTopicsShowing': 3 };
                     res.status(200).render('subscribe', data);
                 }
             }
         }
     } else {
-        if(path === '/login' || path === '/login.html') {
-            res.status(200).render('login', { instructions: '' });
+        if(path === '/login') {
+            res.status(200).render('login', { 'instructions': '' });
         } else {
             let topics = await getAllTopics();
-            let data = { instructions: '', 'topics': topics, 'initNumTopicsShowing': 3 };
+            let data = { 'instructions': '', 'topics': topics, 'initNumTopicsShowing': 3 };
             res.status(200).render('subscribe', data);
         }
     }
@@ -188,21 +197,21 @@ async function createUser(username, subscriptions) {
             editedSubscriptions.push(s);
         }
     }
-    let newUser = { username: username, subscriptions: editedSubscriptions };
+    let newUser = { 'username': username, 'subscriptions': editedSubscriptions };
     try {
         // see if this username exists
-        const user = await getDatabaseItem(client, 'users', { 'username': username });
+        const user = await getDatabaseItem(client, usersCollectionName, { 'username': username });
         if(user === null) {
             // the user does not exist
-            await addDatabaseItem(client, 'users', newUser);
+            await addDatabaseItem(client, usersCollectionName, newUser);
         } else {
             for(let i = 0; i <= 9999999; i++) {
                 let newUsername = username + i.toString();
-                const find = await getDatabaseItem(client, 'users', { 'username': newUsername });
+                const find = await getDatabaseItem(client, usersCollectionName, { 'username': newUsername });
                 if(find === null) {
                     // the username is unique
-                    newUser = { username: newUsername, subscriptions: subscriptions };
-                    await addDatabaseItem(client, 'users', newUser);
+                    newUser = { 'username': newUsername, 'subscriptions': subscriptions };
+                    await addDatabaseItem(client, usersCollectionName, newUser);
                     break;
                 }
             }
@@ -221,11 +230,8 @@ async function getUser(username) {
     const client = new MongoClient(mongoUri);
     let returnUser = null;
     try {
-        const database = client.db('isat_twitter');
-        const collection = database.collection('users');
-        const query = { 'username': username };
-        // see if this username + password combination exists
-        const user = await collection.findOne(query);
+        // see if this user exists
+        let user = await getDatabaseItem(client, usersCollectionName, { 'username': username });
         if(user !== null) {
             // the user exists
             returnUser = user;
@@ -242,12 +248,10 @@ async function editUser(username, subscriptions) {
     const client = new MongoClient(mongoUri);
     let editedUser = { 'username': username, 'subscriptions': subscriptions };
     try {
-        const database = client.db('isat_twitter');
-        const collection = database.collection('users');
-        const query = { 'username': username };
         // https://www.w3schools.com/nodejs/nodejs_mongodb_update.asp
+        const editId = { 'username': username };
         const editQuery = { $set: editedUser };
-        await collection.updateOne(query, editQuery);
+        await updateDatabaseCollection(client, topicsCollectionName, editId, editQuery);
     } catch(error) {
         console.error(error);
     } finally {
@@ -261,10 +265,10 @@ async function createTopic(topicName) {
     let newTopic = { 'topic': topicName, 'posts': [] };
     try {
         // see if this topic exists
-        const dbTopic = await getDatabaseItem(client, 'topics', { 'topic': topicName });
+        const dbTopic = await getDatabaseItem(client, topicsCollectionName, { 'topic': topicName });
         if(dbTopic === null) {
             // the topic does not exist
-            await addDatabaseItem(client, 'topics', newTopic);
+            await addDatabaseItem(client, topicsCollectionName, newTopic);
         }
     } catch(error) {
         console.error(error);
@@ -276,14 +280,14 @@ async function createTopic(topicName) {
 
 async function createPost(topicName, username, postTitle, postText) {
     const client = new MongoClient(mongoUri);
-    let newPost = { 'title': postTitle, 'text': postText, 'user': username, 'replies': [] };
+    let newPost = { 'title': postTitle, 'text': postText, 'user': username, 'replies': [], '_id': ObjectID().toHexString() };
     try {
-        const dbTopic = await getDatabaseItem(client, 'topics', { 'topic': topicName });
+        const dbTopic = await getDatabaseItem(client, topicsCollectionName, { 'topic': topicName });
         if(dbTopic !== null) {
             // https://stackoverflow.com/questions/11077202/in-mongodb-is-it-practical-to-keep-all-comments-for-a-post-in-one-document
             const updateId = { _id: dbTopic['_id'] };
             const updateQuery = { $push: { 'posts': newPost }};
-            await updateDatabaseCollection(client, 'topics', updateId, updateQuery);
+            await updateDatabaseCollection(client, topicsCollectionName, updateId, updateQuery);
         }
     } catch(error) {
         console.error(error);
@@ -291,6 +295,28 @@ async function createPost(topicName, username, postTitle, postText) {
     } finally {
         await client.close();
     }
+}
+
+async function getPostsDict(subscriptions) {
+    let postsDict = {};
+    for(let i in subscriptions) {
+        let topic = subscriptions[i];
+        postsDict[topic] = await getPosts(topic);
+    }
+    return postsDict;
+}
+
+async function getPosts(topicName) {
+    const client = new MongoClient(mongoUri);
+    let topic;
+    try {
+        topic = await getDatabaseItem(client, topicsCollectionName, { 'topic': topicName });
+    } catch(error) {
+        console.error(error);
+    } finally {
+        await client.close();
+    }
+    return topic.posts;
 }
 
 async function createReply(post, replyText, replyUser) {
@@ -303,7 +329,7 @@ async function getAllTopics() {
     let topics = null;
     try {
         const database = client.db(databaseName);
-        const collection = database.collection('topics');
+        const collection = database.collection(topicsCollectionName);
         // https://stackoverflow.com/questions/33425565/how-to-return-array-of-string-with-mongodb-aggregation
         topics = await collection.distinct('topic');
     } catch(error) {
@@ -328,7 +354,6 @@ async function getSubscriptions(reqBody) {
     return subscriptions;
 }
 
-
 async function getDatabaseItem(client, collection, query) {
     // https://www.w3schools.com/nodejs/nodejs_mongodb_find.asp
     const db = client.db(databaseName);
@@ -342,10 +367,10 @@ async function addDatabaseItem(client, collection, item) {
     await dbCollection.insertOne(item);
 }
 
-async function updateDatabaseCollection(client, collection, updateId, query) {
+async function updateDatabaseCollection(client, collection, editId, query) {
     const db = client.db(databaseName);
     const dbCollection = db.collection(collection);
-    await dbCollection.updateOne(updateId, query);
+    await dbCollection.updateOne(editId, query);
 }
 
 function readFileSync(filepath) {
