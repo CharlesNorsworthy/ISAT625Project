@@ -20,13 +20,13 @@ const mongoUri = 'mongodb+srv://' + process.env.USERNAME + ':' + process.env.PAS
 const ObjectID = require("bson-objectid");
 
 app.listen(port);
-console.log('Server started at http://localhost:' + port);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.set('view engine', 'ejs');
 // https://stackoverflow.com/questions/24582338/how-can-i-include-css-files-using-node-express-and-ejs
 app.use(express.static(__dirname + '/views'));
+console.log('Server started at http://localhost:' + port);
 
 const databaseName = 'isat_twitter';
 const cookieName = 'isatTwitterCookie';
