@@ -6,6 +6,7 @@
 /// https://www.geeksforgeeks.org/use-ejs-as-template-engine-in-node-js/
 /// https://www.geeksforgeeks.org/express-js-res-redirect-function/
 /// https://www.npmjs.com/package/bson-objectid
+/// https://flaviocopes.com/render-app-deploy-stuck-on-in-progress/
 
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -26,6 +27,7 @@ app.use(cookieParser());
 app.set('view engine', 'ejs');
 // https://stackoverflow.com/questions/24582338/how-can-i-include-css-files-using-node-express-and-ejs
 app.use(express.static(__dirname + '/views'));
+console.log('static views directory: ' + __dirname + '/views');
 console.log('Server started at http://localhost:' + port);
 
 const databaseName = 'isat_twitter';
