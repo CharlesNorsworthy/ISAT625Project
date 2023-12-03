@@ -17,7 +17,6 @@ const { MongoClient } = require('mongodb');
 const NodeHtmlParser = require('node-html-parser');
 const mongoUri = 'mongodb+srv://' + process.env.USERNAME + ':' + process.env.PASSWORD +
     '@cluster0.jt7yc3y.mongodb.net/?retryWrites=true&w=majority';
-console.log('Mongo URI: ' + mongoUri);
 const ObjectID = require("bson-objectid");
 
 app.listen(port);
