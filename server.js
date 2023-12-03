@@ -33,7 +33,7 @@ const cookieName = 'isatTwitterCookie';
 const topicsCollectionName = 'topics';
 const usersCollectionName = 'users';
 
-app.get('/style.css', function(req, res) {
+app.get('*/style.css', function(req, res) {
     res.send(readFileAsync(__dirname + '/views/style.css'));
 });
 
@@ -46,7 +46,7 @@ app.post('/subscribe', async function(req, res) {
         user.expires = new Date(Date.now() + 1000000);
         res.cookie(cookieName, user);
         let postsDict = await getPostsDict(subscriptions);
-        res.render('SubscribedTopics', { 'username': username, 'postsDict': postsDict });
+        res.status(200).render('SubscribedTopics', { 'username': username, 'postsDict': postsDict });
     } else {
         res.status(500).send('Internal Server Error.');
     }
@@ -63,7 +63,7 @@ app.post('/login', async function (req, res) {
         user.expires = new Date(Date.now() + 1000000);
         res.cookie(cookieName, user);
         let postsDict = await getPostsDict(user.subscriptions);
-        res.render('SubscribedTopics', { 'username': username, 'postsDict': postsDict });
+        res.status(200).render('SubscribedTopics', { 'username': username, 'postsDict': postsDict });
     }
 });
 
@@ -77,11 +77,11 @@ app.post('/edit_subscriptions', async function (req, res) {
         let data = { 'instructions': 'The username is not recognized, please subscribe!', 'topics': topics, 'initNumTopicsShowing': 3 };
         res.status(401).render('subscribe', data);
     } else {
-        let editedUser = await editUser(username, subscriptions);
-        editedUser.expires = new Date(Date.now() + 1000000);
+        await editUserSubscriptions(username, subscriptions);
+        let editedUser = { 'username': username, 'subscriptions': subscriptions, 'expires': new Date(Date.now() + 1000000) };
         res.cookie(cookieName, editedUser);
         let postsDict = await getPostsDict(subscriptions);
-        res.render('SubscribedTopics', { 'username': username, 'postsDict': postsDict });
+        res.status(200).render('SubscribedTopics', { 'username': username, 'postsDict': postsDict });
     }
 });
 
@@ -108,7 +108,7 @@ app.post('/create_post', async function (req, res) {
         user.expires = new Date(Date.now() + 1000000);
         res.cookie(cookieName, user);
         let postsDict = await getPostsDict(user.subscriptions);
-        res.render('SubscribedTopics', { 'username': username, 'postsDict': postsDict });
+        res.status(200).render('SubscribedTopics', { 'username': username, 'postsDict': postsDict });
     }
 });
 
@@ -162,39 +162,39 @@ app.get('*', async function (req, res) {
             const username = userCookie.username;
             let user = await getUser(username);
             if(user !== null) {
-                if(path === '/subscribe/') {
+                if(path.startsWith('/subscribe')) {
                     let topics = await getAllTopics();
                     let data = { 'instructions': '', 'topics': topics, 'initNumTopicsShowing': 3 };
                     res.status(200).render('subscribe', data);
-                } else if(path === '/login/') {
+                } else if(path.startsWith('/login')) {
                     res.status(200).render('login', { 'instructions': '' });
-                } else if(path === '/create_post/') {
+                } else if(path.startsWith('/create_post')) {
                     let topics = await getAllTopics();
                     user.expires = new Date(Date.now() + 1000000);
                     res.cookie(cookieName, user);
                     res.status(200).render('CreatePost', { 'topics': topics, 'username': user.username });
-                } else if(path === '/edit_subscriptions/') {
+                } else if(path.startsWith('/edit_subscriptions')) {
                     let topics = await getAllTopics();
                     user.expires = new Date(Date.now() + 1000000);
                     res.cookie(cookieName, user);
                     res.status(200).render('EditSubscriptions', { 'topics': topics, 'username':
                         user.username, 'subscriptions': user.subscriptions });
-                } else if(path === '/full_post/') {
+                } else if(path.startsWith('/full_post')) {
                     let params = req.query;
                     let topic = params.topic;
                     let postId = params.post_id;
                     let post = await getPost(topic, postId);
                     user.expires = new Date(Date.now() + 1000000);
                     res.cookie(cookieName, user);
-                    res.render('ViewPost', { 'username': user.username, 'topic': topic, 'post': post });
+                    res.status(200).render('ViewPost', { 'username': user.username, 'topic': topic, 'post': post });
                 } else {
                     user.expires = new Date(Date.now() + 1000000);
                     res.cookie(cookieName, user);
                     let postsDict = await getPostsDict(user.subscriptions);
-                    res.render('SubscribedTopics', { 'username': username, 'postsDict': postsDict });
+                    res.status(200).render('SubscribedTopics', { 'username': username, 'postsDict': postsDict });
                 }
             } else {
-                if(path === '/login/') {
+                if(path.startsWith('/login')) {
                     res.status(200).render('login', { 'instructions': '' });
                 } else {
                     let topics = await getAllTopics();
@@ -204,7 +204,7 @@ app.get('*', async function (req, res) {
             }
         }
     } else {
-        if(path === '/login/') {
+        if(path.startsWith('/login')) {
             res.status(200).render('login', { 'instructions': '' });
         } else {
             let topics = await getAllTopics();
@@ -273,20 +273,18 @@ async function getUser(username) {
     return returnUser;
 }
 
-async function editUser(username, subscriptions) {
+async function editUserSubscriptions(username, subscriptions) {
     const client = new MongoClient(mongoUri);
-    let editedUser = { 'username': username, 'subscriptions': subscriptions };
     try {
         // https://www.w3schools.com/nodejs/nodejs_mongodb_update.asp
         const editId = { 'username': username };
-        const editQuery = { $set: editedUser };
-        await updateDatabaseCollection(client, topicsCollectionName, editId, editQuery);
+        const editQuery = { $set: { 'subscriptions': subscriptions }};
+        await updateDatabaseCollection(client, usersCollectionName, editId, editQuery);
     } catch(error) {
         console.error(error);
     } finally {
         await client.close();
     }
-    return editedUser;
 }
 
 async function createTopic(topicName) {
@@ -353,17 +351,19 @@ async function getPost(topicName, postId) {
     let topic;
     try {
         topic = await getDatabaseItem(client, topicsCollectionName, { 'topic': topicName });
+        if(topic != null) {
+            let allPosts = topic.posts;
+            for(let i in allPosts) {
+                let post = allPosts[i];
+                if(post._id === postId) {
+                    return post;
+                }
+            }
+        }
     } catch(error) {
         console.error(error);
     } finally {
         await client.close();
-    }
-    let allPosts = topic.posts;
-    for(let i in allPosts) {
-        let post = allPosts[i];
-        if(post._id === postId) {
-            return post;
-        }
     }
     return null;
 }
