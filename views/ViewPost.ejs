@@ -1,0 +1,35 @@
+<html lang="en">
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <body>
+    <h5><i>Post Title: </i><%=post.title%></h5>
+        <p><i>Post text: </i><%=post.text%></p>
+        <p><i>Posted by user: </i><%=post.user%></p>
+        <p><i>Replies: </i></p>
+        <%
+        let replies = post.replies;
+        for(let i in replies) {
+            let replyObj = replies[i];
+            let user = replyObj.user;
+            let reply = replyObj.text;
+        %>
+        <h5>---</h5>
+        <p><i>Reply: </i><%=reply%></p>
+        <p><i>Reply from User: </i><%=user%></p>
+        <h5>---</h5>
+        <%
+        }
+        %>
+        <form action="/reply" method="POST">
+            <input id="topic" name="topic" type="hidden" value="<%=topic%>" readonly>
+            <input id="post_id" name="post_id" type="hidden" value="<%=post._id%>" readonly>
+            <input id="username" name="username" type="hidden" value="<%=username%>" readonly>
+            <p>
+                <label for="reply">Reply to Post:</label>
+                <input id="reply" name="reply" type="text" value="">
+            </p>
+            <p>
+                <input type="submit">
+            </p>
+        </form>
+    </body>
+</html>

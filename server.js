@@ -112,6 +112,23 @@ app.post('/create_post', async function (req, res) {
     }
 });
 
+app.post('/reply', async function(req, res) {
+    let reqBody = req.body;
+    const username = reqBody.username;
+    let user = await getUser(username);
+    if (user === null) {
+        let topics = await getAllTopics();
+        let data = { 'instructions': 'The username is not recognized, please subscribe!', 'topics': topics, 'initNumTopicsShowing': 3 };
+        res.status(401).render('subscribe', data);
+    } else {
+        const topic = reqBody.topic;
+        const postId = reqBody.post_id;
+        const reply = reqBody.reply;
+        await createReply(topic, postId, username, reply);
+        res.status(200).redirect('/full_post/?topic=' + topic + '&post_id=' + postId);
+    }
+});
+
 app.get('/expire_cookie', function(req, res) {
     let expiredTime = Date.now() - 1;
     let cookies = req.cookies;
@@ -129,7 +146,7 @@ app.get('/expire_cookie', function(req, res) {
 app.get('*', async function (req, res) {
     // TODO: consider redirecting instead of handling here
     let now = Date.now();
-    let path = req.url.toString();
+    let path = req.path;
     let cookies = req.cookies;
     let hasCookie = cookies.hasOwnProperty(cookieName);
     if(hasCookie) {
@@ -145,19 +162,31 @@ app.get('*', async function (req, res) {
             const username = userCookie.username;
             let user = await getUser(username);
             if(user !== null) {
-                if(path === '/subscribe') {
+                if(path === '/subscribe/') {
                     let topics = await getAllTopics();
                     let data = { 'instructions': '', 'topics': topics, 'initNumTopicsShowing': 3 };
                     res.status(200).render('subscribe', data);
-                } else if(path === '/login') {
+                } else if(path === '/login/') {
                     res.status(200).render('login', { 'instructions': '' });
-                } else if (path === '/create_post') {
+                } else if(path === '/create_post/') {
                     let topics = await getAllTopics();
+                    user.expires = new Date(Date.now() + 1000000);
+                    res.cookie(cookieName, user);
                     res.status(200).render('CreatePost', { 'topics': topics, 'username': user.username });
-                } else if (path === '/edit_subscriptions') {
+                } else if(path === '/edit_subscriptions/') {
                     let topics = await getAllTopics();
+                    user.expires = new Date(Date.now() + 1000000);
+                    res.cookie(cookieName, user);
                     res.status(200).render('EditSubscriptions', { 'topics': topics, 'username':
                         user.username, 'subscriptions': user.subscriptions });
+                } else if(path === '/full_post/') {
+                    let params = req.query;
+                    let topic = params.topic;
+                    let postId = params.post_id;
+                    let post = await getPost(topic, postId);
+                    user.expires = new Date(Date.now() + 1000000);
+                    res.cookie(cookieName, user);
+                    res.render('ViewPost', { 'username': user.username, 'topic': topic, 'post': post });
                 } else {
                     user.expires = new Date(Date.now() + 1000000);
                     res.cookie(cookieName, user);
@@ -165,7 +194,7 @@ app.get('*', async function (req, res) {
                     res.render('SubscribedTopics', { 'username': username, 'postsDict': postsDict });
                 }
             } else {
-                if(path === '/login') {
+                if(path === '/login/') {
                     res.status(200).render('login', { 'instructions': '' });
                 } else {
                     let topics = await getAllTopics();
@@ -175,7 +204,7 @@ app.get('*', async function (req, res) {
             }
         }
     } else {
-        if(path === '/login') {
+        if(path === '/login/') {
             res.status(200).render('login', { 'instructions': '' });
         } else {
             let topics = await getAllTopics();
@@ -285,7 +314,7 @@ async function createPost(topicName, username, postTitle, postText) {
         const dbTopic = await getDatabaseItem(client, topicsCollectionName, { 'topic': topicName });
         if(dbTopic !== null) {
             // https://stackoverflow.com/questions/11077202/in-mongodb-is-it-practical-to-keep-all-comments-for-a-post-in-one-document
-            const updateId = { _id: dbTopic['_id'] };
+            const updateId = { '_id': dbTopic['_id'] };
             const updateQuery = { $push: { 'posts': newPost }};
             await updateDatabaseCollection(client, topicsCollectionName, updateId, updateQuery);
         }
@@ -319,8 +348,43 @@ async function getPosts(topicName) {
     return topic.posts;
 }
 
-async function createReply(post, replyText, replyUser) {
-    //TODO: implement
+async function getPost(topicName, postId) {
+    const client = new MongoClient(mongoUri);
+    let topic;
+    try {
+        topic = await getDatabaseItem(client, topicsCollectionName, { 'topic': topicName });
+    } catch(error) {
+        console.error(error);
+    } finally {
+        await client.close();
+    }
+    let allPosts = topic.posts;
+    for(let i in allPosts) {
+        let post = allPosts[i];
+        if(post._id === postId) {
+            return post;
+        }
+    }
+    return null;
+}
+
+async function createReply(topicName, postId, replyUser, replyText) {
+    let post = await getPost(topicName, postId);
+    const client = new MongoClient(mongoUri);
+    let newReply = { 'user': replyUser, 'text': replyText};
+    try {
+        if(post != null) {
+            // https://stackoverflow.com/questions/60586215/multiple-conditions-in-updateone-query-in-mongodb
+            const updateId = { 'topic': topicName, 'posts._id': postId };
+            const updateQuery = { $push: { 'posts.$.replies': newReply }};
+            await updateDatabaseCollection(client, topicsCollectionName, updateId, updateQuery);
+        }
+    } catch(error) {
+        console.error(error);
+        return null;
+    } finally {
+        await client.close();
+    }
 }
 
 async function getAllTopics() {

@@ -9,10 +9,8 @@
     <p>Subscriptions:</p>
     <%
     for(const [topicName, posts] of Object.entries(postsDict)) {
-        console.log('key ' + topicName);
-        console.log('value ' + posts);
     %>
-    <h3>Topic: <%=topicName%></h3>
+    <h3><i>Topic: </i><%=topicName%></h3>
     <%
         for(let i in posts) {
             if(i >= 3) {
@@ -20,10 +18,11 @@
             }
             let post = posts[i];
     %>
-    <h5>Post Title: <%=post.title%></h5>
-    <p>Post text: <%=post.text%></p>
-    <a href="/topics/full_post/?post_id=<%=post._id%>" id="full_post_<%=post._id%>">See full posting</a>
-    <br>
+    <h5>---</h5>
+    <h5><i>Post Title: </i><%=post.title%></h5>
+    <p><i>Post text: </i><%=post.text%></p>
+    <a href="/full_post/?topic=<%=topicName%>&post_id=<%=post._id%>" id="full_post_<%=post._id%>">See full posting</a>
+    <h5>---</h5>
     <%
         }
     %>
