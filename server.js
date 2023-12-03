@@ -50,6 +50,7 @@ app.post('/subscribe', async function(req, res) {
     } else {
         res.status(500).send('Internal Server Error.');
     }
+
 });
 
 app.post('/login', async function (req, res) {
