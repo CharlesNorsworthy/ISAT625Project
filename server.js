@@ -102,8 +102,15 @@ app.post('/create_post', async function (req, res) {
         let topic;
         if(existingTopic === 'none') {
             topic = newTopic;
+            await createTopic(topic);
         } else {
             topic = existingTopic;
+        }
+        let subscriptions = user.subscriptions;
+        if(!subscriptions.includes(topic)) {
+            // creating or posting to the topic also subscribes you to the topic
+            subscriptions.push(topic);
+            await editUserSubscriptions(username, subscriptions);
         }
         await createPost(topic, username, postTitle, postText);
         user.expires = new Date(Date.now() + 1000000);
@@ -339,12 +346,16 @@ async function getPosts(topicName) {
     let topic;
     try {
         topic = await getDatabaseItem(client, topicsCollectionName, { 'topic': topicName });
+        let posts = topic.posts;
+        if(posts != null) {
+            return posts;
+        }
     } catch(error) {
         console.error(error);
     } finally {
         await client.close();
     }
-    return topic.posts;
+    return null;
 }
 
 async function getPost(topicName, postId) {
